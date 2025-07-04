@@ -21,7 +21,7 @@ dependencies = [
     "datasets",
     "einops",
     "ema_pytorch>=0.5.2",
-    "funasr",
+    # "funasr", # Removed as Faster Whisper is now used for ASR
     "gradio>=3.45.2",
     "jieba",
     "librosa",
@@ -43,12 +43,12 @@ dependencies = [
     # "wespeaker", # No longer directly needed for speaker embeddings after changes to rl/utils.py
     "speechbrain @ git+https://github.com/speechbrain/speechbrain.git@develop",
     "x_transformers>=1.31.14",
+    "faster_whisper>=0.10.1", # Moved from optional-dependencies
 ]
 
 [project.optional-dependencies]
 eval = [
-    "faster_whisper==0.10.1",
-    "funasr",
+    "funasr", # faster_whisper was here
     "jiwer",
     "modelscope",
     "zhconv",

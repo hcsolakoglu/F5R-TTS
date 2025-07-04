@@ -2,8 +2,7 @@ import numpy
 import torch
 import torch.nn.functional as F
 import torchaudio
-from funasr import AutoModel
-from funasr.utils.postprocess_utils import rich_transcription_postprocess
+from faster_whisper import WhisperModel
 # from wespeaker.cli.speaker import Speaker # We are replacing this
 from speechbrain.inference.speaker import EncoderClassifier
 
@@ -77,46 +76,56 @@ def get_emb(wav, sr):
 def cal_sim(emb1, emb2):
     return F.cosine_similarity(emb1, emb2)
 
-
-model_asr_dir = "src/rl/SenseVoiceSmall"
-model_asr = AutoModel(model=model_asr_dir, device="cpu", disable_update=True)
+# Initialize Faster Whisper model
+# Using "cuda" for device if available, else "cpu". Adjust compute_type as needed.
+# "float16" can be used for faster inference on GPUs that support it.
+# "int8_float16" for even faster inference with quantization.
+# Default is "float32" on CPU.
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+COMPUTE_TYPE = "float16" if DEVICE == "cuda" else "auto" # auto will select float32 on CPU, float16 on CUDA
+model_asr = WhisperModel("large-v3", device=DEVICE, compute_type=COMPUTE_TYPE)
 
 
 def test_asr():
-    current_file = 'xx.wav'
-    pcm, _ = torchaudio.load(current_file)
-    resampled_audio = [pcm[0]]
-
-    res = model_asr.inference(
-        input=resampled_audio,
-        cache={},
-        language="auto",  # "zn", "en", "yue", "ja", "ko", "nospeech"
-        use_itn=True,
-        disable_pbar=True,
-        batch_size=len(resampled_audio)
-    )
-    text = rich_transcription_postprocess(res[0]["text"])
-    print(text)
+    # This function would need a sample audio file (e.g., 'xx.wav') to run.
+    # For now, it's a placeholder for testing.
+    # Example:
+    # current_file = 'path/to/your/test_audio.wav'
+    # audio_input, _ = torchaudio.load(current_file)
+    # if audio_input.shape[0] > 1: # if stereo, convert to mono
+    #    audio_input = torch.mean(audio_input, dim=0, keepdim=True)
+    # texts = get_asr(audio_input.unsqueeze(0), _) # unsqueeze to add batch dim
+    # print(texts[0])
+    print("test_asr function needs a sample audio file to run.")
 
 
 def get_asr(audios, sr):
-    # audios -> (b, t)
-    if sr != 16000:
-        resampler = torchaudio.transforms.Resample(orig_freq=sr, new_freq=16000)
-        list_audios = [resampler(audios[i, :].unsqueeze(0))[0] for i in range(audios.size(0))]
-    else:
-        list_audios = [audios[i, :] for i in range(audios.size(0))]
+    # audios -> (b, t), torch.Tensor
+    # Ensure audio is on CPU for faster_whisper if it expects numpy array,
+    # or handle device placement according to faster_whisper's requirements.
+    # Faster Whisper typically expects NumPy arrays.
 
-    results = model_asr.inference(
-        input=list_audios,
-        cache={},
-        language="auto",  # "zn", "en", "yue", "ja", "ko", "nospeech"
-        use_itn=True,
-        disable_pbar=True,
-        batch_size=len(list_audios)
-    )
-    text = [rich_transcription_postprocess(res["text"]) for res in results]
-    return text
+    texts = []
+
+    # Resample if necessary, assuming audios is a batch of tensors (B, T)
+    if sr != 16000:
+        resampler = torchaudio.transforms.Resample(orig_freq=sr, new_freq=16000).to(audios.device)
+        audios_resampled = resampler(audios)
+    else:
+        audios_resampled = audios
+
+    for i in range(audios_resampled.size(0)):
+        audio_input_np = audios_resampled[i, :].cpu().numpy()
+
+        # Transcribe audio
+        # Adjust beam_size, language, etc. as needed.
+        # vad_filter=True can help with silences if your audio has them.
+        segments, info = model_asr.transcribe(audio_input_np, beam_size=5, language="auto", vad_filter=True)
+
+        transcribed_text = "".join(segment.text for segment in segments)
+        texts.append(transcribed_text)
+
+    return texts
 
 
 def editDistance(r, h):
