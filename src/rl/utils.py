@@ -4,48 +4,74 @@ import torch.nn.functional as F
 import torchaudio
 from funasr import AutoModel
 from funasr.utils.postprocess_utils import rich_transcription_postprocess
-from wespeaker.cli.speaker import Speaker
+# from wespeaker.cli.speaker import Speaker # We are replacing this
+from speechbrain.inference.speaker import EncoderClassifier
 
 
-class Speaker_emb(Speaker):
-    def __init__(self, model_dir: str):
-        super().__init__(model_dir)
+# class Speaker_emb(Speaker):
+#     def __init__(self, model_dir: str):
+#         super().__init__(model_dir)
 
-    def extract_embedding_from_pcm(self, pcm: torch.Tensor, sample_rate: int):
-        pcm = pcm.to(torch.float)
-        if sample_rate != self.resample_rate:
-            pcm = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=self.resample_rate)(pcm)
-        feats = self.compute_fbank(pcm, sample_rate=self.resample_rate, cmn=True)
-        feats = feats.unsqueeze(0)
-        feats = feats.to(self.device)
+#     def extract_embedding_from_pcm(self, pcm: torch.Tensor, sample_rate: int):
+#         pcm = pcm.to(torch.float)
+#         if sample_rate != self.resample_rate:
+#             pcm = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=self.resample_rate)(pcm)
+#         feats = self.compute_fbank(pcm, sample_rate=self.resample_rate, cmn=True)
+#         feats = feats.unsqueeze(0)
+#         feats = feats.to(self.device)
 
-        with torch.no_grad():
-            outputs = self.model(feats)
-            outputs = outputs[-1] if isinstance(outputs, tuple) else outputs
-        return outputs
-
-
-model_spk_dir = 'src/rl/wespeaker/chinese'
-model_spk = Speaker_emb(model_spk_dir)
+#         with torch.no_grad():
+#             outputs = self.model(feats)
+#             outputs = outputs[-1] if isinstance(outputs, tuple) else outputs
+#         return outputs
 
 
-def test_spk():
-    current_file = 'xx.wav'
-    wav, sample_rate = torchaudio.load(current_file)
-    current_embedding = model_spk.extract_embedding_from_pcm(wav, sample_rate)
-    print(current_embedding.size())
+# model_spk_dir = 'src/rl/wespeaker/chinese' # Old model
+# model_spk = Speaker_emb(model_spk_dir) # Old model initialization
 
+# Initialize SpeechBrain ECAPA-TDNN model
+# Using a generic name for the savedir, adjust if a specific project structure is preferred.
+speechbrain_speaker_model = EncoderClassifier.from_hparams(
+    source="speechbrain/spkrec-ecapa-voxceleb",
+    savedir="pretrained_models/spkrec-ecapa-voxceleb"
+)
+SPEECHBRAIN_TARGET_SR = 16000
+
+# Ensure os is imported for path checking
+import os
+
+# test_spk function removed as it was for manual verification.
 
 def get_emb(wav, sr):
     # wav -> (b, t), torch.tensor
-    result = []
-    for i in range(wav.size(0)):
-        item = wav[i]
-        item = item.unsqueeze(0)
-        item = model_spk.extract_embedding_from_pcm(item, sr).squeeze(0)
-        result.append(item)
-    result = torch.stack(result, dim=0)
-    return result
+    # Ensure model is on the same device as the input wav data
+    device = wav.device
+    speechbrain_speaker_model.to(device)
+    speechbrain_speaker_model.eval() # Set to eval mode
+
+    # Resample if necessary
+    if sr != SPEECHBRAIN_TARGET_SR:
+        resampler = torchaudio.transforms.Resample(orig_freq=sr, new_freq=SPEECHBRAIN_TARGET_SR).to(device)
+        # Resample each item in the batch if they have different lengths,
+        # or resample the whole batch if possible.
+        # encode_batch expects a batch of tensors. If wav is already a batch (e.g. BxT)
+        # and resampler can handle it, great. Otherwise, loop.
+        # Assuming wav is (B, T)
+        wav_resampled = resampler(wav)
+    else:
+        wav_resampled = wav
+
+    # The encode_batch expects a batch of signals.
+    # Input wav_resampled should be shape (batch_size, num_samples)
+    # Output embeddings are typically (batch_size, 1, embed_dim)
+    with torch.no_grad():
+        embeddings = speechbrain_speaker_model.encode_batch(wav_resampled)
+
+    # Squeeze to (batch_size, embed_dim) to match expected output for cal_sim
+    if embeddings.ndim == 3 and embeddings.shape[1] == 1:
+        embeddings = embeddings.squeeze(1)
+
+    return embeddings
 
 
 def cal_sim(emb1, emb2):

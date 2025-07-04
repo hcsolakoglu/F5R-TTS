@@ -40,7 +40,8 @@ dependencies = [
     "transformers_stream_generator",
     "vocos",
     "wandb",
-    "wespeaker",
+    # "wespeaker", # No longer directly needed for speaker embeddings after changes to rl/utils.py
+    "speechbrain @ git+https://github.com/speechbrain/speechbrain.git@develop",
     "x_transformers>=1.31.14",
 ]
 
