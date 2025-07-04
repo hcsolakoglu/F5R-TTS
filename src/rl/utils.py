@@ -37,7 +37,6 @@ speechbrain_speaker_model = EncoderClassifier.from_hparams(
 SPEECHBRAIN_TARGET_SR = 16000
 
 # Ensure os is imported for path checking
-import os
 
 # test_spk function removed as it was for manual verification.
 
@@ -115,7 +114,7 @@ def get_asr(audios, sr):
         audios_resampled = audios
 
     for i in range(audios_resampled.size(0)):
-        audio_input_np = audios_resampled[i, :].cpu().numpy()
+        audio_input_np = audios_resampled[i, :].float().cpu().numpy()
 
         # Transcribe audio
         # Adjust beam_size, language, etc. as needed.
