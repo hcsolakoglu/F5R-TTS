@@ -339,7 +339,6 @@ class GRPOTrainer():
                                 temp.append(float(line))
                         rewards_list.append(temp)
                     mean = torch.from_numpy(np.mean(rewards_list, axis=0)).to(normalized_rewards.device).to(normalized_rewards.dtype)
-                    std = torch.from_numpy(np.std(rewards_list, axis=0)).to(normalized_rewards.device).to(normalized_rewards.dtype)
                     advantages = normalized_rewards - mean
 
                     pro_advantages = []
