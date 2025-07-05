@@ -14,7 +14,8 @@ from ema_pytorch import EMA
 from f5_tts.model import CFM, DiT
 from f5_tts.model.dataset import DynamicBatchSampler, collate_fn
 from f5_tts.model.utils import (default, exists, get_tokenizer,
-                                load_checkpoint, mask_from_start_end_indices)
+                                mask_from_start_end_indices)
+from f5_tts.infer.utils_infer import load_checkpoint
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LinearLR, SequentialLR
 from torch.utils.data import DataLoader, Dataset, SequentialSampler
