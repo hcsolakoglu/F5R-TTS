@@ -321,10 +321,13 @@ class GRPOTrainer():
                     sim, acc = reward.get_reward(out, mel_spec)
                     rewards = sim * 1.0 + acc * 3.0
 
-                    # Compute grouped-wise rewards
-                    rewards_list = rewards.view(-1).tolist()
+                    # Length normalization
+                    normalized_rewards = rewards / (mel_lengths.to(rewards.device) + 1e-6)
+
+                    # Compute grouped-wise rewards (using normalized rewards)
+                    rewards_list = normalized_rewards.view(-1).tolist()
                     rewards_list = [str(item) for item in rewards_list]
-                    with open("./{}".format(rewards.device), "w") as f:
+                    with open("./{}".format(normalized_rewards.device), "w") as f:
                         f.write("\n".join(rewards_list))
                     self.accelerator.wait_for_everyone()
                     rewards_list = []
@@ -335,9 +338,9 @@ class GRPOTrainer():
                                 line = line.strip("\n")
                                 temp.append(float(line))
                         rewards_list.append(temp)
-                    mean = torch.from_numpy(np.mean(rewards_list, axis=0)).to(rewards.device).to(rewards.dtype)
-                    std = torch.from_numpy(np.std(rewards_list, axis=0)).to(rewards.device).to(rewards.dtype)
-                    advantages = (rewards - mean) / (std + 1e-4)
+                    mean = torch.from_numpy(np.mean(rewards_list, axis=0)).to(normalized_rewards.device).to(normalized_rewards.dtype)
+                    std = torch.from_numpy(np.std(rewards_list, axis=0)).to(normalized_rewards.device).to(normalized_rewards.dtype)
+                    advantages = (normalized_rewards - mean) / (std + 1e-4)
 
                     pro_advantages = []
                     for x, mu, log_sig in pro_result:
