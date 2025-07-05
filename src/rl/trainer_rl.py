@@ -157,10 +157,6 @@ class GRPOTrainer():
         F5TTS_model_cfg = dict(
             dim=1024, depth=22, heads=16, ff_mult=2, text_dim=512, conv_layers=4
         )
-        ema_model = load_model("F5-TTS", "F5TTS_ref", DiT, F5TTS_model_cfg, "last")
-        self.ref_model = ema_model
-        self.ref_model.eval()
-        self.ref_model = self.accelerator.prepare(self.ref_model)
 
     @property
     def is_main(self):
@@ -317,23 +313,11 @@ class GRPOTrainer():
                         cfg_strength=2.0,
                         sway_sampling_coef=-1.0,
                     )
-                    with torch.no_grad():
-                        _, _, ref_pro_result = self.ref_model.module.forward_rl(
-                            cond=prompt_audio,
-                            text=text_inputs,
-                            duration=mel_lengths,
-                            steps=30,
-                            cfg_strength=2.0,
-                            sway_sampling_coef=-1.0,
-                        )
                     pro_result_sample = []
-                    ref_pro_result_sample = []
                     for i, item in enumerate(pro_result):
                         if item[-1]:
                             pro_result_sample.append(item[:-1])
-                            ref_pro_result_sample.append(ref_pro_result[i][:-1])
                     pro_result = pro_result_sample
-                    ref_pro_result = ref_pro_result_sample
                     sim, acc = reward.get_reward(out, mel_spec)
                     rewards = sim * 1.0 + acc * 3.0
 
@@ -369,9 +353,7 @@ class GRPOTrainer():
                     pro_advantages = pro_advantages[trg_idx]
                     pro_advantages = pro_advantages.mean()
 
-                    loss_kl = reward.get_kl(pro_result, ref_pro_result)
-                    loss_kl = loss_kl.mean()
-                    loss = - pro_advantages + loss_kl
+                    loss = - pro_advantages
                     self.accelerator.backward(loss)
 
                     if self.max_grad_norm > 0 and self.accelerator.sync_gradients:

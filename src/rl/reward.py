@@ -25,18 +25,3 @@ def get_reward(gen_mel, trg_mel):
         acc.append(1 - utils.cal_wer(r, h))
     acc = torch.tensor(acc).cuda()
     return sim, acc
-
-
-def cal_kl(gen, ref):
-    gen_mu, gen_sig = gen
-    ref_mu, ref_sig = ref
-    kl = ref_sig - gen_sig
-    kl += ((torch.exp(gen_sig) ** 2) + F.mse_loss(gen_mu, ref_mu, reduction='none')) / (2 * (torch.exp(ref_sig) ** 2))
-    return kl
-
-
-def get_kl(gen_pros, ref_pros):
-    loss = 0
-    for gen, ref in zip(gen_pros, ref_pros):
-        loss += cal_kl(gen[1: 3], ref[1: 3])
-    return loss
