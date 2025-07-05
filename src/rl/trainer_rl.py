@@ -91,6 +91,8 @@ class GRPOTrainer():
         accelerate_kwargs: dict = None,
         ema_kwargs: dict = None
     ):
+        accelerate_kwargs = default(accelerate_kwargs, {})
+        ema_kwargs = default(ema_kwargs, {})
 
         ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
 
